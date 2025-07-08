@@ -293,11 +293,11 @@ order-coffee/
 
 ## Security Considerations
 
-- The server runs with minimal privileges (`nobody:nogroup`)
-- Only essential system calls are allowed
-- No file system write access except `/tmp`
+- The server runs as root (required for `systemd-inhibit` access)
+- Limited file system access (only `/tmp` is writable)
 - Network access is limited to the configured port
 - All input is validated and sanitized
+- Consider firewall rules to restrict network access if needed
 
 ## Contributing
 
