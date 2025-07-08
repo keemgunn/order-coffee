@@ -35,7 +35,7 @@ Order Coffee is a lightweight Rust-based HTTP server that provides API endpoints
 2. **Build and install:**
    ```bash
    chmod +x install.sh
-   ./install.sh
+   sudo ./install.sh
    ```
 
 3. **Verify installation:**

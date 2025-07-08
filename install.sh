@@ -25,8 +25,8 @@ print_error() {
 }
 
 # Check if running as root
-if [[ $EUID -eq 0 ]]; then
-   print_error "This script should not be run as root"
+if [[ $EUID -ne 0 ]]; then
+   print_error "This script must be run as root. Use: sudo ./install.sh"
    exit 1
 fi
 
@@ -53,36 +53,36 @@ fi
 
 # Copy binary to system location
 print_status "Installing binary to /usr/local/bin..."
-sudo cp target/release/order-coffee /usr/local/bin/
-sudo chmod +x /usr/local/bin/order-coffee
+cp target/release/order-coffee /usr/local/bin/
+chmod +x /usr/local/bin/order-coffee
 
 # Copy systemd service file
 print_status "Installing systemd service..."
-sudo cp order-coffee.service /etc/systemd/system/
+cp order-coffee.service /etc/systemd/system/
 
 # Reload systemd and enable service
 print_status "Enabling systemd service..."
-sudo systemctl daemon-reload
-sudo systemctl enable order-coffee.service
+systemctl daemon-reload
+systemctl enable order-coffee.service
 
 # Start the service
 print_status "Starting order-coffee service..."
-sudo systemctl start order-coffee.service
+systemctl start order-coffee.service
 
 # Check service status
 sleep 2
-if sudo systemctl is-active --quiet order-coffee.service; then
+if systemctl is-active --quiet order-coffee.service; then
     print_status "✅ order-coffee service is running successfully!"
 else
     print_error "❌ Failed to start order-coffee service"
-    print_status "Check service status with: sudo systemctl status order-coffee.service"
-    print_status "Check logs with: sudo journalctl -u order-coffee.service -f"
+    print_status "Check service status with: systemctl status order-coffee.service"
+    print_status "Check logs with: journalctl -u order-coffee.service -f"
     exit 1
 fi
 
 # Show service status
 print_status "Service status:"
-sudo systemctl status order-coffee.service --no-pager -l
+systemctl status order-coffee.service --no-pager -l
 
 print_status ""
 print_status "🎉 Installation completed successfully!"
