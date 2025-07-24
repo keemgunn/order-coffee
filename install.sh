@@ -5,6 +5,9 @@
 
 set -e
 
+cd /home/gunn/order-coffee
+rm -r ./target
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -43,6 +46,9 @@ if ! command -v systemd-inhibit &> /dev/null; then
 fi
 
 print_status "Starting order-coffee installation..."
+
+print_status "Stopping order-coffee.service..."
+systemctl stop order-coffee.service
 
 # Build the project
 print_status "Building order-coffee..."

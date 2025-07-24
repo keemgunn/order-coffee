@@ -1,9 +1,9 @@
 [package]
 name = "order-coffee"
-version = "1.0.0"
+version = "2.0.0"
 edition = "2021"
 authors = ["Your Name <your.email@example.com>"]
-description = "A simple HTTP server to prevent system sleep on Pop!_OS/Ubuntu"
+description = "A state-managed HTTP server for intelligent system suspension control"
 license = "MIT"
 
 [dependencies]

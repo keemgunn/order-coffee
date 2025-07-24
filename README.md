@@ -1,20 +1,24 @@
 # Order Coffee ☕
 
-A simple HTTP server for preventing system sleep on Pop!_OS/Ubuntu during remote SSH sessions.
+A state-managed HTTP server for intelligent system suspension control on Pop!_OS/Ubuntu.
 
 ## Overview
 
-Order Coffee is a lightweight Rust-based HTTP server that provides API endpoints to control system sleep behavior. It's designed to solve the common problem where Pop!_OS/Ubuntu systems go to sleep even during active SSH sessions, since SSH activity is not considered "non-idle" by default.
+Order Coffee is a lightweight Rust-based HTTP server that provides API endpoints to control system suspension behavior with advanced state management. Version 2.0 introduces multi-state tracking, automatic suspension timers, and ollama service integration to ensure proper service lifecycle management before system suspension.
 
 ## Features
 
-- 🚀 **Simple HTTP API** - Control sleep prevention with simple POST requests
+- 🚀 **Multi-State Management** - Track multiple states (coffee, ollama) that can prevent suspension
+- ⏰ **Automatic Suspension Timer** - Configurable countdown when all states are inactive
+- 🔧 **Ollama Service Integration** - Automatic start/stop of ollama.service with state changes
+- 🛠️ **Service Recovery** - Escalating recovery attempts for failed ollama service operations
+- 📊 **Enhanced Status Monitoring** - Real-time state tracking with timer information
+- 🚨 **Error Tracking** - Visible error states for client monitoring
 - ⚡ **Lightweight** - Built in Rust for minimal resource usage
-- 🔧 **Systemd Integration** - Automatic startup on boot
-- 📊 **Status Monitoring** - Check server status and uptime
-- 🛡️ **Graceful Shutdown** - Proper cleanup of sleep inhibitors
-- 📝 **Comprehensive Logging** - Detailed logs for troubleshooting
-- 🔒 **Security Focused** - Minimal privileges and secure defaults
+- 🔧 **Systemd Integration** - Automatic startup on boot with proper service management
+- 🛡️ **Graceful Shutdown** - Proper cleanup and state management
+- 📝 **Comprehensive Logging** - Detailed logs with extensive comments for learning
+- 🔒 **Security Focused** - Root privileges for system control with minimal attack surface
 
 ## Quick Start
 
@@ -71,20 +75,58 @@ If you prefer to install manually:
 ### Basic Commands
 
 ```bash
-# Start the server manually
-order-coffee --port 20553
+# Start the server manually with custom timer (5 minutes)
+order-coffee --port 20553 --timer 5
 
-# Prevent system sleep
+# Enable coffee state (prevents suspension)
 curl -X POST http://192.168.0.200:20553/coffee
 
-# Allow system sleep
+# Disable coffee state
 curl -X POST http://192.168.0.200:20553/chill
 
-# Check status
+# Enable ollama state and start ollama.service
+curl -X POST http://192.168.0.200:20553/ollama-on
+
+# Disable ollama state and stop ollama.service
+curl -X POST http://192.168.0.200:20553/ollama-off
+
+# Check current states and timer status
 curl http://192.168.0.200:20553/status
 
 # Health check
 curl http://192.168.0.200:20553/health
+```
+
+### New v2.0 Workflow
+
+The upgraded server uses **state-based suspension control**:
+
+1. **Multiple States**: The system tracks multiple independent states (`coffee`, `ollama`)
+2. **Suspension Logic**: System stays awake if ANY state is `true`
+3. **Automatic Timer**: When ALL states become `false`, a configurable timer starts
+4. **Smart Suspension**: After timer expires, system suspends automatically
+5. **Service Management**: Ollama service is properly stopped before suspension
+
+**Example Workflow:**
+```bash
+# 1. Start ollama for AI work
+curl -X POST http://localhost:20553/ollama-on
+# → ollama.service starts, system stays awake
+
+# 2. Also enable coffee state for other work
+curl -X POST http://localhost:20553/coffee
+# → Both states active, system stays awake
+
+# 3. Finish AI work, disable ollama
+curl -X POST http://localhost:20553/ollama-off
+# → ollama.service stops, but coffee state keeps system awake
+
+# 4. Finish other work, disable coffee
+curl -X POST http://localhost:20553/chill
+# → All states inactive, 10-minute timer starts
+
+# 5. System automatically suspends after timer expires
+# → ollama.service was already stopped safely
 ```
 
 ### Command Line Options
@@ -94,13 +136,14 @@ order-coffee --help
 ```
 
 ```
-A simple HTTP server to prevent system sleep on Pop!_OS/Ubuntu
+A state-managed HTTP server to control system suspension
 
 Usage: order-coffee [OPTIONS]
 
 Options:
   -p, --port <PORT>    Port to bind the server to [default: 20553]
       --host <HOST>    Host address to bind to [default: 0.0.0.0]
+  -t, --timer <TIMER>  Suspension timer duration in minutes [default: 10]
   -v, --verbose        Enable verbose logging
   -h, --help           Print help
   -V, --version        Print version
@@ -110,9 +153,11 @@ Options:
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST   | `/coffee` | Enable sleep prevention |
-| POST   | `/chill`  | Disable sleep prevention |
-| GET    | `/status` | Get server status and state |
+| POST   | `/coffee` | Enable coffee state (prevents suspension) |
+| POST   | `/chill`  | Disable coffee state |
+| POST   | `/ollama-on` | Enable ollama state and start ollama.service |
+| POST   | `/ollama-off` | Disable ollama state and stop ollama.service |
+| GET    | `/status` | Get current system states and timer status |
 | GET    | `/health` | Health check endpoint |
 
 ### Response Examples
@@ -121,21 +166,63 @@ Options:
 ```json
 {
   "status": "active",
-  "message": "Sleep prevention enabled",
-  "timestamp": "2025-01-08T12:53:45Z"
+  "message": "Coffee state enabled",
+  "timestamp": "2025-07-24T12:42:00Z",
+  "states": {
+    "coffee": true,
+    "ollama": false,
+    "errors": []
+  }
+}
+```
+
+**POST /ollama-on:**
+```json
+{
+  "status": "active",
+  "message": "Ollama state enabled and service started",
+  "timestamp": "2025-07-24T12:42:00Z",
+  "states": {
+    "coffee": false,
+    "ollama": true,
+    "errors": []
+  }
 }
 ```
 
 **GET /status:**
 ```json
 {
-  "status": "active",
+  "states": {
+    "coffee": true,
+    "ollama": false,
+    "errors": []
+  },
+  "timer_active": false,
+  "timer_remaining_seconds": null,
   "uptime": "2h 15m 30s",
   "port": 20553,
   "host": "0.0.0.0",
-  "inhibitor_active": true,
   "last_action": "coffee",
-  "last_action_time": "2025-01-08T12:53:45Z"
+  "last_action_time": "2025-07-24T12:42:00Z"
+}
+```
+
+**GET /status (with timer active):**
+```json
+{
+  "states": {
+    "coffee": false,
+    "ollama": false,
+    "errors": []
+  },
+  "timer_active": true,
+  "timer_remaining_seconds": 480,
+  "uptime": "2h 15m 30s",
+  "port": 20553,
+  "host": "0.0.0.0",
+  "last_action": "chill",
+  "last_action_time": "2025-07-24T12:42:00Z"
 }
 ```
 
