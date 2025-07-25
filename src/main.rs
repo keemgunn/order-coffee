@@ -10,7 +10,7 @@ use order_coffee::{
     config::Config,
     state::AppState,
     api::create_router,
-    services::check_systemctl_available,
+    services::{check_systemctl_available, initialize_ollama_state},
     tasks::{suspension_timer_task, wake_up_recovery_task},
     utils::shutdown_signal,
 };
@@ -51,6 +51,7 @@ async fn main() -> anyhow::Result<()> {
 
     // INITIAL STATE MANAGEMENT =============================
     
+    
     // Add a brief delay to ensure the timer task has started
     sleep(Duration::from_millis(100)).await;
     
@@ -59,6 +60,13 @@ async fn main() -> anyhow::Result<()> {
         tracing::warn!("Failed to trigger initial state check: {}", e);
     }
 
+    info!("Starting user service state checks (takes 8 seconds to wait...)");
+    
+    // Initialize ollama service state to match server's initial state
+    sleep(Duration::from_millis(8000)).await;
+    if let Err(e) = initialize_ollama_state().await {
+        tracing::warn!("Failed to initialize ollama service state: {}", e);
+    }
 
     // INITIATE HTTP ROUTER SERVER =============================
 

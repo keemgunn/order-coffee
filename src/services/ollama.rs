@@ -95,6 +95,47 @@ pub async fn restart_ollama_service() -> Result<(), String> {
     Ok(())
 }
 
+/// Check if ollama.service is currently active
+pub async fn check_ollama_service_status() -> Result<bool, String> {
+    debug!("Checking ollama.service status");
+    
+    let output = Command::new("systemctl")
+        .args(&["is-active", "ollama.service"])
+        .output()
+        .await
+        .map_err(|e| format!("Failed to execute systemctl is-active: {}", e))?;
+
+    // systemctl is-active returns 0 if active, non-zero if inactive
+    let is_active = output.status.success();
+    debug!("ollama.service is {}", if is_active { "active" } else { "inactive" });
+    
+    Ok(is_active)
+}
+
+/// Initialize ollama service state on server startup
+/// Ensures the service state matches the server's initial state (ollama: false)
+pub async fn initialize_ollama_state() -> Result<(), String> {
+    info!("Initializing ollama service state");
+    
+    match check_ollama_service_status().await {
+        Ok(is_active) => {
+            if is_active {
+                info!("ollama.service is active, stopping to synchronize with server state");
+                stop_ollama_service().await?;
+                info!("ollama.service stopped successfully during initialization");
+            } else {
+                info!("ollama.service is already inactive, no action needed");
+            }
+            Ok(())
+        }
+        Err(e) => {
+            warn!("Failed to check ollama.service status during initialization: {}", e);
+            // Don't fail the entire server startup if we can't check the service status
+            Ok(())
+        }
+    }
+}
+
 /// Comprehensive ollama service recovery with escalating attempts
 pub async fn recover_ollama_service() -> Result<(), String> {
     warn!("Starting ollama service recovery process");
