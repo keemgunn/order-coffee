@@ -9,6 +9,9 @@ pub struct SystemState {
     pub coffee: bool,
     /// Ollama service state (controlled by /ollama-on and /ollama-off endpoints)
     pub ollama: bool,
+    /// Internal flag to track if system was suspended (not exposed in API)
+    #[serde(skip)]
+    suspended: bool,
     /// List of current errors for client visibility
     pub errors: Vec<String>,
 }
@@ -19,6 +22,7 @@ impl SystemState {
         Self {
             coffee: false,
             ollama: false,
+            suspended: false,
             errors: Vec::new(),
         }
     }
@@ -46,6 +50,16 @@ impl SystemState {
         if self.errors.len() != initial_count {
             tracing::info!("Cleared {} errors for component: {}", initial_count - self.errors.len(), component);
         }
+    }
+
+    /// Set the suspended state (internal use only)
+    pub(crate) fn set_suspended(&mut self, suspended: bool) {
+        self.suspended = suspended;
+    }
+
+    /// Check if the system was suspended (internal use only)
+    pub(crate) fn is_suspended(&self) -> bool {
+        self.suspended
     }
 }
 

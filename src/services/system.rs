@@ -1,11 +1,19 @@
 //! System operations like suspension
 
+use std::sync::Arc;
 use tokio::process::Command;
 use tracing::info;
 
+use crate::state::AppState;
+
 /// Execute system suspension
-pub async fn execute_system_suspend() -> Result<(), String> {
+pub async fn execute_system_suspend(state: Arc<AppState>) -> Result<(), String> {
     info!("Executing system suspension");
+    
+    // Set suspended flag before suspending
+    if let Err(e) = state.set_suspended(true) {
+        tracing::warn!("Failed to set suspended state: {}", e);
+    }
     
     let output = Command::new("systemctl")
         .args(&["suspend"])

@@ -207,4 +207,22 @@ impl AppState {
         info!("Initial state check triggered");
         Ok(())
     }
+
+    /// Set the suspended state (internal use only)
+    pub fn set_suspended(&self, suspended: bool) -> Result<(), String> {
+        let mut state = self.system_state.lock()
+            .map_err(|e| format!("Failed to lock system state: {}", e))?;
+        
+        state.set_suspended(suspended);
+        info!("Suspended state set to: {}", suspended);
+        Ok(())
+    }
+
+    /// Check if the system was suspended (internal use only)
+    pub fn is_suspended(&self) -> Result<bool, String> {
+        let state = self.system_state.lock()
+            .map_err(|e| format!("Failed to lock system state: {}", e))?;
+        
+        Ok(state.is_suspended())
+    }
 }

@@ -11,7 +11,7 @@ use order_coffee::{
     state::AppState,
     api::create_router,
     services::check_systemctl_available,
-    tasks::suspension_timer_task,
+    tasks::{suspension_timer_task, wake_up_recovery_task},
     utils::shutdown_signal,
 };
 
@@ -41,6 +41,12 @@ async fn main() -> anyhow::Result<()> {
     let timer_state = Arc::clone(&state);
     tokio::spawn(async move {
         suspension_timer_task(timer_state).await;
+    });
+
+    // Start the wake-up recovery background task
+    let recovery_state = Arc::clone(&state);
+    tokio::spawn(async move {
+        wake_up_recovery_task(recovery_state).await;
     });
 
     // INITIAL STATE MANAGEMENT =============================

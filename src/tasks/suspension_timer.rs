@@ -56,7 +56,7 @@ pub async fn suspension_timer_task(state: Arc<AppState>) {
                                     }
                                     
                                     // Execute system suspension
-                                    if let Err(e) = execute_system_suspend().await {
+                                    if let Err(e) = execute_system_suspend(Arc::clone(&state)).await {
                                         error!("Failed to suspend system: {}", e);
                                         if let Err(e) = state.add_error(format!("System suspension failed: {}", e)) {
                                             error!("Failed to add suspension error: {}", e);
