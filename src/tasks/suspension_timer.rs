@@ -2,7 +2,7 @@
 
 use std::{sync::Arc, time::{Duration, Instant}};
 use tokio::time::sleep;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 use crate::{
     services::execute_system_suspend,

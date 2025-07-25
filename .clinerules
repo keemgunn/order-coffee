@@ -1,0 +1,12 @@
+
+# Development
+
+- Development envrionment: Pop!OS 
+- Deployment environment: Pop!OS (Current Machine)
+- Using Rust
+
+## Testing
+
+- All compilation and tests will be conducted by the user. No need for testing. 
+- Just explain what you've did after task completed.
+

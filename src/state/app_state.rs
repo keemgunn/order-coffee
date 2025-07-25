@@ -193,4 +193,18 @@ impl AppState {
         let last_action_time = self.last_action_time.lock().ok().and_then(|t| *t);
         (last_action, last_action_time)
     }
+
+    /// Trigger an initial state check to start the suspension timer if needed
+    pub fn trigger_state_check(&self) -> Result<(), String> {
+        let current_state = self.get_system_state()?;
+        
+        // Send the current state to trigger timer logic
+        if let Err(e) = self.state_change_tx.send(current_state) {
+            warn!("Failed to send initial state check: {}", e);
+            return Err(format!("Failed to trigger state check: {}", e));
+        }
+        
+        info!("Initial state check triggered");
+        Ok(())
+    }
 }

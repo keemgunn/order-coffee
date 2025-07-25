@@ -2,8 +2,8 @@
 //! 
 //! This is the main entry point for the order-coffee application.
 
-use std::sync::Arc;
-use tokio::net::TcpListener;
+use std::{sync::Arc, time::Duration};
+use tokio::{net::TcpListener, time::sleep};
 use tracing::info;
 
 use order_coffee::{
@@ -42,6 +42,19 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(async move {
         suspension_timer_task(timer_state).await;
     });
+
+    // INITIAL STATE MANAGEMENT =============================
+    
+    // Add a brief delay to ensure the timer task has started
+    sleep(Duration::from_millis(100)).await;
+    
+    // Trigger initial state check to start timer if all states are inactive
+    if let Err(e) = state.trigger_state_check() {
+        tracing::warn!("Failed to trigger initial state check: {}", e);
+    }
+
+
+    // INITIATE HTTP ROUTER SERVER =============================
 
     // Create HTTP router with all endpoints
     let app = create_router(state);
