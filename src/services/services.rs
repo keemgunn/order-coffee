@@ -21,10 +21,18 @@ impl ServiceConfig {
         }
     }
     
-    pub fn docker() -> Self {
+    pub fn comfy_unsafe() -> Self {
         Self {
-            service_name: "docker.service".to_string(),
-            process_name: Some("dockerd".to_string()),
+            service_name: "comfy-unsafe.service".to_string(),
+            process_name: Some("comfy-unsafe".to_string()),
+            recovery_enabled: true,
+        }
+    }
+    
+    pub fn comfy_safe() -> Self {
+        Self {
+            service_name: "comfy-safe.service".to_string(),
+            process_name: Some("comfy-safe".to_string()),
             recovery_enabled: true,
         }
     }
@@ -33,7 +41,8 @@ impl ServiceConfig {
     pub fn from_name(name: &str) -> Option<Self> {
         match name {
             "ollama" => Some(Self::ollama()),
-            "docker" => Some(Self::docker()),
+            "comfy-unsafe" => Some(Self::comfy_unsafe()),
+            "comfy-safe" => Some(Self::comfy_safe()),
             _ => None,
         }
     }

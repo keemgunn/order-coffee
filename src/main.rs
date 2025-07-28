@@ -62,11 +62,21 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Starting user service state checks (takes 8 seconds to wait...)");
     
-    // Initialize ollama service state to match server's initial state
-    sleep(Duration::from_millis(8000)).await;
+    // Initialize service states to match server's initial state
+    sleep(Duration::from_millis(6000)).await;
     let ollama_config = ServiceConfig::ollama();
     if let Err(e) = initialize_service_state(&ollama_config, false).await {
         tracing::warn!("Failed to initialize ollama service state: {}", e);
+    }
+    sleep(Duration::from_millis(6000)).await;
+    let comfy_unsafe_config = ServiceConfig::comfy_unsafe();
+    if let Err(e) = initialize_service_state(&comfy_unsafe_config, false).await {
+        tracing::warn!("Failed to initialize comfy-unsafe service state: {}", e);
+    }
+    sleep(Duration::from_millis(6000)).await;
+    let comfy_safe_config = ServiceConfig::comfy_safe();
+    if let Err(e) = initialize_service_state(&comfy_safe_config, false).await {
+        tracing::warn!("Failed to initialize comfy-safe service state: {}", e);
     }
 
     // INITIATE HTTP ROUTER SERVER =============================
@@ -86,8 +96,6 @@ async fn main() -> anyhow::Result<()> {
     info!("  POST /service/_service_name_/stop        - Stop a systemd service");
     info!("  GET  /status                    - Check current status and timer");
     info!("  GET  /health                    - Health check");
-    info!("");
-    info!("Available services: ollama, docker");
 
     // Setup graceful shutdown
     let server = axum::serve(listener, app);

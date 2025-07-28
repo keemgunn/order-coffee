@@ -22,6 +22,8 @@ impl SystemState {
     pub fn new() -> Self {
         let mut services = HashMap::new();
         services.insert("ollama".to_string(), false); // Initialize ollama
+        services.insert("comfy-unsafe".to_string(), false); // Initialize comfy-unsafe
+        services.insert("comfy-safe".to_string(), false); // Initialize comfy-unsafe
         
         Self {
             coffee: false,
