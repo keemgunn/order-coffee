@@ -92,12 +92,12 @@ impl AppState {
         )
     }
 
-    /// Set the ollama state
-    pub fn set_ollama(&self, active: bool) -> Result<SystemState, String> {
-        info!("Setting ollama state to: {}", active);
+    /// Set a service state
+    pub fn set_service(&self, service_name: &str, active: bool) -> Result<SystemState, String> {
+        info!("Setting {} service state to: {}", service_name, active);
         self.update_state(
-            if active { "ollama-on" } else { "ollama-off" },
-            |state| state.ollama = active,
+            &format!("{}-{}", service_name, if active { "on" } else { "off" }),
+            |state| state.set_service(service_name, active),
         )
     }
 

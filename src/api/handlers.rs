@@ -2,16 +2,14 @@
 
 use std::sync::Arc;
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::StatusCode,
     response::Json,
 };
 use tracing::{error, info, warn};
 
 use crate::{
-    services::{
-        start_ollama_service, stop_ollama_service, force_kill_ollama, recover_ollama_service,
-    },
+    services::{start_systemd_service, stop_systemd_service, force_kill_process, recover_systemd_service, ServiceConfig},
     state::AppState,
 };
 use super::responses::{ApiResponse, StatusResponse, HealthResponse};
@@ -50,127 +48,160 @@ pub async fn chill_handler(State(state): State<Arc<AppState>>) -> Result<Json<Ap
     }
 }
 
-/// Handle POST /ollama-on - Enable ollama state and start service
-pub async fn ollama_on_handler(State(state): State<Arc<AppState>>) -> Result<Json<ApiResponse>, StatusCode> {
-    // Clear any previous ollama errors
-    if let Err(e) = state.clear_errors_for("ollama") {
-        warn!("Failed to clear ollama errors: {}", e);
+/// Handle POST /service/{service_name}/start - Start a systemd service
+pub async fn service_start_handler(
+    Path(service_name): Path<String>,
+    State(state): State<Arc<AppState>>
+) -> Result<Json<ApiResponse>, StatusCode> {
+    // Get service configuration
+    let service_config = match ServiceConfig::from_name(&service_name) {
+        Some(config) => config,
+        None => {
+            warn!("Unknown service requested: {}", service_name);
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    };
+
+    // Clear any previous errors for this service
+    if let Err(e) = state.clear_errors_for(&service_name) {
+        warn!("Failed to clear {} errors: {}", service_name, e);
     }
 
-    // Try to start ollama service
-    match start_ollama_service().await {
+    // Try to start the service
+    match start_systemd_service(&service_config.service_name).await {
         Ok(()) => {
             // Service started successfully, update state
-            match state.set_ollama(true) {
+            match state.set_service(&service_name, true) {
                 Ok(system_state) => {
-                    info!("Ollama-on endpoint called - ollama state enabled and service started");
+                    info!("{} service started successfully", service_name);
                     Ok(Json(ApiResponse::active(
-                        "Ollama state enabled and service started".to_string(),
+                        format!("{} service started", service_name),
                         system_state,
                     )))
                 }
                 Err(e) => {
-                    error!("Failed to update ollama state: {}", e);
+                    error!("Failed to update {} state: {}", service_name, e);
                     Err(StatusCode::INTERNAL_SERVER_ERROR)
                 }
             }
         }
         Err(e) => {
-            // Service start failed, try recovery
-            warn!("Failed to start ollama service: {}, attempting recovery", e);
-            
-            match recover_ollama_service().await {
-                Ok(()) => {
-                    // Recovery successful, update state
-                    match state.set_ollama(true) {
-                        Ok(system_state) => {
-                            info!("Ollama service recovered and started successfully");
-                            Ok(Json(ApiResponse::active(
-                                "Ollama state enabled after recovery".to_string(),
-                                system_state,
-                            )))
+            // Service start failed, try recovery if enabled
+            if service_config.recovery_enabled {
+                warn!("Failed to start {} service: {}, attempting recovery", service_name, e);
+                
+                match recover_systemd_service(&service_config).await {
+                    Ok(()) => {
+                        match state.set_service(&service_name, true) {
+                            Ok(system_state) => {
+                                info!("{} service recovered and started successfully", service_name);
+                                Ok(Json(ApiResponse::active(
+                                    format!("{} service started after recovery", service_name),
+                                    system_state,
+                                )))
+                            }
+                            Err(e) => {
+                                error!("Failed to update {} state after recovery: {}", service_name, e);
+                                Err(StatusCode::INTERNAL_SERVER_ERROR)
+                            }
                         }
-                        Err(e) => {
-                            error!("Failed to update ollama state after recovery: {}", e);
-                            Err(StatusCode::INTERNAL_SERVER_ERROR)
+                    }
+                    Err(recovery_error) => {
+                        // Recovery failed, handle error
+                        let error_msg = format!("{} service failed to start: {}", service_name, recovery_error);
+                        
+                        if let Err(e) = state.set_service(&service_name, false) {
+                            error!("Failed to set {} state to false: {}", service_name, e);
+                        }
+                        
+                        if let Err(e) = state.add_error(error_msg.clone()) {
+                            error!("Failed to add error to state: {}", e);
+                        }
+
+                        match state.get_system_state() {
+                            Ok(system_state) => Ok(Json(ApiResponse::error(error_msg, system_state))),
+                            Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
                         }
                     }
                 }
-                Err(recovery_error) => {
-                    // All recovery attempts failed, set state to false and add error
-                    let error_msg = format!("Ollama service failed to start: {}", recovery_error);
-                    
-                    if let Err(e) = state.set_ollama(false) {
-                        error!("Failed to set ollama state to false: {}", e);
-                    }
-                    
-                    if let Err(e) = state.add_error(error_msg.clone()) {
-                        error!("Failed to add error to state: {}", e);
-                    }
-
-                    error!("Ollama service start failed completely: {}", recovery_error);
-                    
-                    // Return the current state with error
-                    match state.get_system_state() {
-                        Ok(system_state) => Ok(Json(ApiResponse::error(error_msg, system_state))),
-                        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
-                    }
+            } else {
+                // No recovery, just return error
+                let error_msg = format!("{} service failed to start: {}", service_name, e);
+                if let Err(e) = state.add_error(error_msg.clone()) {
+                    error!("Failed to add error to state: {}", e);
+                }
+                
+                match state.get_system_state() {
+                    Ok(system_state) => Ok(Json(ApiResponse::error(error_msg, system_state))),
+                    Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
                 }
             }
         }
     }
 }
 
-/// Handle POST /ollama-off - Disable ollama state and stop service
-pub async fn ollama_off_handler(State(state): State<Arc<AppState>>) -> Result<Json<ApiResponse>, StatusCode> {
-    // Clear any previous ollama errors
-    if let Err(e) = state.clear_errors_for("ollama") {
-        warn!("Failed to clear ollama errors: {}", e);
+/// Handle POST /service/{service_name}/stop - Stop a systemd service
+pub async fn service_stop_handler(
+    Path(service_name): Path<String>,
+    State(state): State<Arc<AppState>>
+) -> Result<Json<ApiResponse>, StatusCode> {
+    // Get service configuration
+    let service_config = match ServiceConfig::from_name(&service_name) {
+        Some(config) => config,
+        None => {
+            warn!("Unknown service requested: {}", service_name);
+            return Err(StatusCode::BAD_REQUEST);
+        }
+    };
+
+    // Clear any previous errors for this service
+    if let Err(e) = state.clear_errors_for(&service_name) {
+        warn!("Failed to clear {} errors: {}", service_name, e);
     }
 
-    // Try to stop ollama service
-    match stop_ollama_service().await {
+    // Try to stop the service
+    match stop_systemd_service(&service_config.service_name).await {
         Ok(()) => {
-            // Service stopped successfully, update state
-            match state.set_ollama(false) {
+            match state.set_service(&service_name, false) {
                 Ok(system_state) => {
-                    info!("Ollama-off endpoint called - ollama state disabled and service stopped");
+                    info!("{} service stopped successfully", service_name);
                     Ok(Json(ApiResponse::inactive(
-                        "Ollama state disabled and service stopped".to_string(),
+                        format!("{} service stopped", service_name),
                         system_state,
                     )))
                 }
                 Err(e) => {
-                    error!("Failed to update ollama state: {}", e);
+                    error!("Failed to update {} state: {}", service_name, e);
                     Err(StatusCode::INTERNAL_SERVER_ERROR)
                 }
             }
         }
         Err(e) => {
-            // Service stop failed, try force kill
-            warn!("Failed to stop ollama service: {}, attempting force kill", e);
-            
-            if let Err(kill_error) = force_kill_ollama().await {
-                warn!("Force kill also failed: {}", kill_error);
+            // Service stop failed, try force kill if available
+            if let Some(process_name) = &service_config.process_name {
+                warn!("Failed to stop {} service: {}, attempting force kill", service_name, e);
                 
-                // Add error but still set state to false (we tried our best)
-                let error_msg = format!("Ollama service stop failed: {}", e);
-                if let Err(e) = state.add_error(error_msg.clone()) {
-                    error!("Failed to add error to state: {}", e);
+                if let Err(kill_error) = force_kill_process(process_name).await {
+                    warn!("Force kill also failed: {}", kill_error);
+                    
+                    let error_msg = format!("{} service stop failed: {}", service_name, e);
+                    if let Err(e) = state.add_error(error_msg.clone()) {
+                        error!("Failed to add error to state: {}", e);
+                    }
                 }
             }
 
             // Always set state to false when turning off, even if stop failed
-            match state.set_ollama(false) {
+            match state.set_service(&service_name, false) {
                 Ok(system_state) => {
-                    info!("Ollama state set to false (service stop may have failed)");
+                    info!("{} state set to false (service stop may have failed)", service_name);
                     Ok(Json(ApiResponse::inactive(
-                        "Ollama state disabled (service stop attempted)".to_string(),
+                        format!("{} service stop attempted", service_name),
                         system_state,
                     )))
                 }
                 Err(e) => {
-                    error!("Failed to update ollama state: {}", e);
+                    error!("Failed to update {} state: {}", service_name, e);
                     Err(StatusCode::INTERNAL_SERVER_ERROR)
                 }
             }

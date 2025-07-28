@@ -19,8 +19,32 @@ pub async fn suspension_timer_task(state: Arc<AppState>) {
         // Wait for a state change notification
         match state_rx.recv().await {
             Ok(current_state) => {
-                debug!("Timer task received state change: coffee={}, ollama={}", 
-                       current_state.coffee, current_state.ollama);
+                let active_services: Vec<String> = current_state.services
+                    .iter()
+                    .filter(|(_, &active)| active)
+                    .map(|(name, _)| name.clone())
+                    .collect();
+                
+                debug!("Timer task received state change: coffee={}, active_services={:?}", 
+                       current_state.coffee, active_services);
+                
+                if current_state.any_active() {
+                    let active_items: Vec<String> = {
+                        let mut items = Vec::new();
+                        if current_state.coffee {
+                            items.push("coffee".to_string());
+                        }
+                        for (service, &active) in &current_state.services {
+                            if active {
+                                items.push(service.clone());
+                            }
+                        }
+                        items
+                    };
+                    debug!("Active states preventing suspension: {:?}", active_items);
+                } else {
+                    debug!("All states inactive, suspension timer eligible");
+                }
                 
                 if current_state.all_inactive() {
                     // All states are inactive, start suspension timer

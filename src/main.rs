@@ -10,7 +10,7 @@ use order_coffee::{
     config::Config,
     state::AppState,
     api::create_router,
-    services::{check_systemctl_available, initialize_ollama_state},
+    services::{check_systemctl_available, initialize_service_state, ServiceConfig},
     tasks::{suspension_timer_task, wake_up_recovery_task},
     utils::shutdown_signal,
 };
@@ -64,7 +64,8 @@ async fn main() -> anyhow::Result<()> {
     
     // Initialize ollama service state to match server's initial state
     sleep(Duration::from_millis(8000)).await;
-    if let Err(e) = initialize_ollama_state().await {
+    let ollama_config = ServiceConfig::ollama();
+    if let Err(e) = initialize_service_state(&ollama_config, false).await {
         tracing::warn!("Failed to initialize ollama service state: {}", e);
     }
 
@@ -79,12 +80,14 @@ async fn main() -> anyhow::Result<()> {
     
     info!("Server running on http://{}", addr);
     info!("Endpoints:");
-    info!("  POST /coffee     - Enable coffee state");
-    info!("  POST /chill      - Disable coffee state");
-    info!("  POST /ollama-on  - Enable ollama state and start service");
-    info!("  POST /ollama-off - Disable ollama state and stop service");
-    info!("  GET  /status     - Check current status and timer");
-    info!("  GET  /health     - Health check");
+    info!("  POST /coffee                    - Enable coffee state");
+    info!("  POST /chill                     - Disable coffee state");
+    info!("  POST /service/_service_name_/start      - Start a systemd service");
+    info!("  POST /service/_service_name_/stop        - Stop a systemd service");
+    info!("  GET  /status                    - Check current status and timer");
+    info!("  GET  /health                    - Health check");
+    info!("");
+    info!("Available services: ollama, docker");
 
     // Setup graceful shutdown
     let server = axum::serve(listener, app);

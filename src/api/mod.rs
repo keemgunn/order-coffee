@@ -20,8 +20,9 @@ pub fn create_router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/coffee", post(coffee_handler))
         .route("/chill", post(chill_handler))
-        .route("/ollama-on", post(ollama_on_handler))
-        .route("/ollama-off", post(ollama_off_handler))
+        // New generic service endpoints
+        .route("/service/:service_name/start", post(service_start_handler))
+        .route("/service/:service_name/stop", post(service_stop_handler))
         .route("/status", get(status_handler))
         .route("/health", get(health_handler))
         .layer(CorsLayer::permissive())
